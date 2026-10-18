@@ -1,4 +1,9 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html{color-scheme:light dark}body{margin:0}</style>
 <title>Suchtrio</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -128,6 +133,8 @@
   .engines { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
   .engines span { display: inline-flex; align-items: center; gap: 7px; }
   .engines i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .auto { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--muted); cursor: pointer; }
+  .auto input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
 
   /* Ergebnisbereich */
   .results { padding-block: 24px 80px; scroll-margin-top: 12px; }
@@ -216,6 +223,7 @@
         <span><i style="background:var(--e-bing)"></i>bing.com</span>
         <span><i style="background:var(--e-ddg)"></i>duckduckgo.com</span>
       </div>
+      <label class="auto" for="auto"><input type="checkbox" id="auto" checked>Beim Suchen drei Fenster nebeneinander öffnen</label>
     </form>
   </section>
 
@@ -223,7 +231,7 @@
     <div class="bar">
       <h2 id="title">Noch keine Suche</h2>
       <div class="actions">
-        <button class="btn" id="all" type="button" aria-disabled="true">Alle drei in Tabs öffnen</button>
+        <button class="btn" id="all" type="button" aria-disabled="true">Drei Fenster nebeneinander öffnen</button>
         <a class="btn" href="#" id="top">Neue Suche ↑</a>
       </div>
     </div>
@@ -249,8 +257,8 @@
       </article>
     </div>
 
-    <p class="note" id="note-info">Die Suchmaschinen erlauben es nicht, ihre Ergebnisse in eine fremde Seite einzubetten. Deshalb öffnet jede Spalte die echte Ergebnisseite in einem eigenen Tab, in dem du die ersten zehn Treffer vergleichen kannst.</p>
-    <p class="note warn" id="note-block" hidden>Dein Browser hat mindestens einen Tab blockiert. Nutze stattdessen die drei Buttons in den Spalten.</p>
+    <p class="note" id="note-info">Die Suchmaschinen erlauben es nicht, ihre Ergebnisse in eine fremde Seite einzubetten. Deshalb öffnet die Seite drei schmale Fenster, jedes auf einem Drittel deines Bildschirms: Google links, Bing in der Mitte, DuckDuckGo rechts. So vergleichst du die ersten zehn Treffer direkt nebeneinander.</p>
+    <p class="note warn" id="note-block" hidden>Dein Browser hat mindestens ein Fenster als Pop-up blockiert. Erlaube Pop-ups für diese Seite (Symbol in der Adressleiste) und klicke noch einmal auf „Drei Fenster nebeneinander öffnen“, oder nutze die drei Buttons in den Spalten.</p>
   </section>
 </main>
 
@@ -268,6 +276,27 @@
     { id: 'd', base: 'https://duckduckgo.com/?q=' }
   ];
   var urls = [];
+  var autoBox = document.getElementById('auto');
+  try { if (localStorage.getItem('suchtrio-auto') === '0') autoBox.checked = false; } catch (e) {}
+  autoBox.addEventListener('change', function () {
+    try { localStorage.setItem('suchtrio-auto', autoBox.checked ? '1' : '0'); } catch (e) {}
+  });
+
+  // Öffnet die drei Suchen als Fenster, je ein Drittel der nutzbaren Bildschirmbreite.
+  function openSide() {
+    if (!urls.length) return;
+    var s = window.screen;
+    var left0 = s.availLeft || 0, top0 = s.availTop || 0;
+    var w = Math.floor(s.availWidth / 3), h = s.availHeight;
+    var blocked = false;
+    urls.forEach(function (u, i) {
+      var f = 'popup=yes,left=' + (left0 + i * w) + ',top=' + top0 + ',width=' + w + ',height=' + h + ',resizable=yes,scrollbars=yes';
+      var win = null;
+      try { win = window.open(u, 'suchtrio_' + engines[i].id, f); if (win) win.opener = null; } catch (e) {}
+      if (!win) blocked = true;
+    });
+    blockNote.hidden = !blocked;
+  }
 
   function esc(s) {
     return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
@@ -287,6 +316,7 @@
     blockNote.hidden = true;
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     section.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    if (autoBox.checked) openSide();
   }
 
   form.addEventListener('submit', function (ev) {
@@ -296,16 +326,7 @@
     run(term);
   });
 
-  allBtn.addEventListener('click', function () {
-    if (!urls.length) return;
-    var blocked = false;
-    urls.forEach(function (u) {
-      var w = null;
-      try { w = window.open(u, '_blank', 'noopener'); } catch (e) {}
-      if (!w) blocked = true;
-    });
-    blockNote.hidden = !blocked;
-  });
+  allBtn.addEventListener('click', openSide);
 
   document.getElementById('top').addEventListener('click', function (ev) {
     ev.preventDefault();
@@ -315,5 +336,5 @@
   });
 })();
 </script>
-
-</body></html>
+</body>
+</html>
